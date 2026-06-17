@@ -15,11 +15,12 @@ final class Settings {
     private const GROUP = 'gratis_comply_settings_group';
     private const PAGE  = 'gratis-comply';
 
-    private const OPT_ENABLED = 'gratis_comply_banner_enabled';
-    private const OPT_TEXT    = 'gratis_comply_banner_text';
-    private const OPT_PRIVACY = 'gratis_comply_privacy_url';
+    private const OPT_ENABLED      = 'gratis_comply_banner_enabled';
+    private const OPT_TEXT         = 'gratis_comply_banner_text';
+    private const OPT_PRIVACY      = 'gratis_comply_privacy_url';
+    private const OPT_CONSENT_MODE = 'gratis_comply_consent_mode';
 
-    private const DEFAULT_TEXT = 'We use essential cookies only. No tracking.';
+    private const DEFAULT_TEXT = 'We use cookies to improve your experience. Choose which cookies to allow.';
 
     /** Register the settings submenu page. */
     public static function register_menu(): void {
@@ -49,6 +50,11 @@ final class Settings {
             'sanitize_callback' => 'esc_url_raw',
             'default'           => '',
         ]);
+        register_setting(self::GROUP, self::OPT_CONSENT_MODE, [
+            'type'              => 'boolean',
+            'sanitize_callback' => [__CLASS__, 'sanitize_bool'],
+            'default'           => true,
+        ]);
     }
 
     /** Register the privacy-policy generator admin-post handler. */
@@ -64,6 +70,11 @@ final class Settings {
     /** Whether the cookie banner is enabled. */
     public static function bannerEnabled(): bool {
         return (bool) get_option(self::OPT_ENABLED, true);
+    }
+
+    /** Whether Google Consent Mode v2 output is enabled. */
+    public static function consentModeEnabled(): bool {
+        return (bool) get_option(self::OPT_CONSENT_MODE, true);
     }
 
     /** Configured banner text. */
@@ -159,6 +170,10 @@ final class Settings {
         echo '<label><input type="checkbox" name="' . esc_attr(self::OPT_ENABLED) . '" value="1"' . checked(self::bannerEnabled(), true, false) . '> ' . esc_html__('Show the cookie consent banner', 'gratis-comply') . '</label>';
         echo '</td></tr>';
 
+        echo '<tr><th scope="row">' . esc_html__('Google Consent Mode v2', 'gratis-comply') . '</th><td>';
+        echo '<label><input type="checkbox" name="' . esc_attr(self::OPT_CONSENT_MODE) . '" value="1"' . checked(self::consentModeEnabled(), true, false) . '> ' . esc_html__('Emit gtag consent signals (default denied, updated on accept)', 'gratis-comply') . '</label>';
+        echo '</td></tr>';
+
         echo '<tr><th scope="row"><label for="gc_text">' . esc_html__('Banner text', 'gratis-comply') . '</label></th><td>';
         echo '<input type="text" id="gc_text" class="large-text" name="' . esc_attr(self::OPT_TEXT) . '" value="' . esc_attr(self::bannerText()) . '">';
         echo '</td></tr>';
@@ -190,21 +205,26 @@ final class Settings {
         $log = is_array($log) ? $log : [];
         $accept = 0;
         $reject = 0;
+        $custom = 0;
         foreach ($log as $entry) {
-            if (($entry['choice'] ?? '') === 'accept') {
+            $choice = $entry['choice'] ?? '';
+            if ($choice === 'accept') {
                 ++$accept;
-            } elseif (($entry['choice'] ?? '') === 'reject') {
+            } elseif ($choice === 'reject') {
                 ++$reject;
+            } elseif ($choice === 'custom') {
+                ++$custom;
             }
         }
 
         echo '<h2>' . esc_html__('Consent log', 'gratis-comply') . '</h2>';
         echo '<p>';
         printf(
-            /* translators: 1: accept count, 2: reject count, 3: total. */
-            esc_html__('Accepted: %1$s — Rejected: %2$s — Total recorded: %3$s', 'gratis-comply'),
+            /* translators: 1: accept count, 2: reject count, 3: custom count, 4: total. */
+            esc_html__('Accepted: %1$s — Rejected: %2$s — Custom: %3$s — Total recorded: %4$s', 'gratis-comply'),
             esc_html(number_format_i18n($accept)),
             esc_html(number_format_i18n($reject)),
+            esc_html(number_format_i18n($custom)),
             esc_html(number_format_i18n(count($log)))
         );
         echo '</p>';

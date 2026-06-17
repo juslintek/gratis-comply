@@ -31,26 +31,82 @@ final class DataRequests {
         ]);
     }
 
-    /** Log a consent choice to the audit trail. */
+    /** Log a granular consent choice to the audit trail. */
     public static function recordConsent(\WP_REST_Request $req): \WP_REST_Response {
-        $choice = sanitize_key((string) $req->get_param('choice'));
-        if (! in_array($choice, ['accept', 'reject'], true)) {
-            return new \WP_REST_Response(['error' => 'Invalid choice'], 400);
+        $categories = self::sanitizeCategories($req->get_param('categories'));
+
+        // Back-compat: accept the legacy {choice:'accept'|'reject'} payload.
+        if ($categories === null) {
+            $choice = sanitize_key((string) $req->get_param('choice'));
+            if (! in_array($choice, ['accept', 'reject'], true)) {
+                return new \WP_REST_Response(['error' => 'Invalid choice'], 400);
+            }
+            $grant      = $choice === 'accept';
+            $categories = ['necessary' => true];
+            foreach (Consent::nonEssentialSlugs() as $slug) {
+                $categories[$slug] = $grant;
+            }
         }
+
+        $choice = self::deriveChoice($categories);
 
         $log   = get_option(self::OPT_LOG, []);
         $log   = is_array($log) ? $log : [];
         $log[] = [
-            'choice'  => $choice,
-            'visitor' => self::visitorHash(),
-            'time'    => gmdate('c'),
+            'choice'     => $choice,
+            'categories' => $categories,
+            'visitor'    => self::visitorHash(),
+            'time'       => gmdate('c'),
         ];
         if (count($log) > self::MAX_ENTRIES) {
             $log = array_slice($log, -self::MAX_ENTRIES);
         }
         update_option(self::OPT_LOG, $log, false);
 
-        return new \WP_REST_Response(['recorded' => true]);
+        return new \WP_REST_Response(['recorded' => true, 'choice' => $choice]);
+    }
+
+    /**
+     * Validate the granular consent payload against the known categories.
+     *
+     * @param mixed $raw Incoming 'categories' param.
+     * @return array<string,bool>|null Sanitised map (necessary forced on), or
+     *                                 null when the param is absent/invalid.
+     */
+    private static function sanitizeCategories($raw): ?array {
+        if (! is_array($raw)) {
+            return null;
+        }
+        $out = ['necessary' => true];
+        foreach (Consent::nonEssentialSlugs() as $slug) {
+            $value      = $raw[$slug] ?? false;
+            $out[$slug] = filter_var($value, FILTER_VALIDATE_BOOLEAN);
+        }
+        return $out;
+    }
+
+    /**
+     * Collapse the granular map into a summary choice for the admin log view.
+     *
+     * @param array<string,bool> $categories Sanitised category map.
+     * @return string 'accept' (all non-essential on), 'reject' (all off), or 'custom'.
+     */
+    private static function deriveChoice(array $categories): string {
+        $total   = 0;
+        $granted = 0;
+        foreach (Consent::nonEssentialSlugs() as $slug) {
+            ++$total;
+            if (! empty($categories[$slug])) {
+                ++$granted;
+            }
+        }
+        if ($granted === 0) {
+            return 'reject';
+        }
+        if ($granted === $total) {
+            return 'accept';
+        }
+        return 'custom';
     }
 
     /** Create a WordPress privacy export/erasure request. */
