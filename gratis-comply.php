@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Gratis Comply
  * Plugin URI: https://github.com/juslintek/gratis-comply
- * Description: GDPR/CCPA compliance: cookie consent banner, privacy policy generator, and data export/erasure requests. Replaces Complianz ($149/yr).
+ * Description: GDPR/CCPA compliance: cookie consent banner, privacy policy generator, and data export/erasure requests.
  * Version: 1.0.0
  * Requires at least: 6.0
  * Requires PHP: 8.1
