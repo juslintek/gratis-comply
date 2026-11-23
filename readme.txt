@@ -81,6 +81,18 @@ Yes:
 * A `gratis-comply:consent` DOM event fires on `document` after every choice, with the granular
   state in `event.detail`.
 
+== Third-Party Services ==
+
+This plugin integrates with Google's Consent Mode v2 API by emitting `gtag('consent', ...)` signals on the frontend. No data is sent to Google by this plugin directly — the signals are consumed by Google Tag Manager or gtag.js if separately installed on your site.
+
+= Google Consent Mode v2 =
+
+The plugin outputs JavaScript consent default/update calls that Google's tag infrastructure reads.
+* [Google Privacy Policy](https://policies.google.com/privacy)
+* [Consent Mode documentation](https://developers.google.com/tag-platform/security/guides/consent)
+
+The cookie consent banner itself is fully self-contained and does not load any external resources. All consent data is stored locally in a first-party cookie.
+
 == Changelog ==
 
 = 1.0.0 =
