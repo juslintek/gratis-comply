@@ -111,12 +111,20 @@ final class DataRequests {
 
     /** Create a WordPress privacy export/erasure request. */
     public static function handleDataRequest(\WP_REST_Request $req): \WP_REST_Response {
+        $rate_key = 'gratis_comply_dr_' . self::visitorHash();
+        $attempts = (int) get_transient($rate_key);
+        if ($attempts >= 5) {
+            return new \WP_REST_Response(['error' => 'Too many requests. Please try again later.'], 429);
+        }
+
         $email = sanitize_email((string) $req->get_param('email'));
         $type  = sanitize_key((string) $req->get_param('type'));
 
         if ($email === '' || ! in_array($type, ['export', 'delete'], true)) {
             return new \WP_REST_Response(['error' => 'Invalid request'], 400);
         }
+
+        set_transient($rate_key, $attempts + 1, HOUR_IN_SECONDS);
 
         $action     = $type === 'delete' ? 'remove_personal_data' : 'export_personal_data';
         $request_id = wp_create_user_request($email, $action);
