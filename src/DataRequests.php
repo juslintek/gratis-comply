@@ -33,6 +33,13 @@ final class DataRequests {
 
     /** Log a granular consent choice to the audit trail. */
     public static function recordConsent(\WP_REST_Request $req): \WP_REST_Response {
+        $visitor  = self::visitorHash();
+        $rate_key = 'gratis_comply_cl_' . $visitor;
+        $attempts = (int) get_transient($rate_key);
+        if ($attempts >= 20) {
+            return new \WP_REST_Response(['error' => 'Too many requests. Please try again later.'], 429);
+        }
+
         $categories = self::sanitizeCategories($req->get_param('categories'));
 
         // Back-compat: accept the legacy {choice:'accept'|'reject'} payload.
@@ -48,6 +55,8 @@ final class DataRequests {
             }
         }
 
+        set_transient($rate_key, $attempts + 1, HOUR_IN_SECONDS);
+
         $choice = self::deriveChoice($categories);
 
         $log   = get_option(self::OPT_LOG, []);
@@ -55,7 +64,7 @@ final class DataRequests {
         $log[] = [
             'choice'     => $choice,
             'categories' => $categories,
-            'visitor'    => self::visitorHash(),
+            'visitor'    => $visitor,
             'time'       => gmdate('c'),
         ];
         if (count($log) > self::MAX_ENTRIES) {
